@@ -6,17 +6,21 @@ The engine will process orders for one instrument using price-time priority. The
 
 ## Current status
 
-The project is in its first implementation increment.
+The project now includes the internal order book index used by the matching engine.
 
 - [x] .NET 10 solution and xUnit test infrastructure
 - [x] Exact fixed-point price representation and parsing
-- [ ] Order book with price-time priority
+- [x] Bid and ask indexes with price-time priority
+- [x] Insertion, best-order lookup, ordered enumeration, and removal
+- [ ] Immutable order book snapshots
 - [ ] Limit and market order matching
 - [ ] Command-line interface and book visualization
 - [ ] Order cancellation and amendment
 - [ ] Pegged orders
 
 Prices are stored as signed 64-bit minor units and are parsed without floating-point conversion. Accepted input has at most two decimal places and uses a dot as the decimal separator.
+
+The order book stores bids from highest to lowest price and asks from lowest to highest price. Orders at the same price are ordered by their monotonic priority sequence, which provides deterministic FIFO behavior while allowing arbitrary removal in later increments.
 
 ## Build and test
 

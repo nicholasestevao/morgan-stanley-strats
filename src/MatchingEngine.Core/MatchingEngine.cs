@@ -29,6 +29,7 @@ public sealed class MatchingEngine
     public OperationResult<SubmitResult> Submit(SubmitRequest? request) => request switch
     {
         null => OperationResult<SubmitResult>.Failure(EngineErrorCode.RequestRequired, "request"),
+        LimitRequest limit => SubmitLimit(limit),
         MarketRequest market => SubmitMarket(market),
         _ => OperationResult<SubmitResult>.Failure(EngineErrorCode.UnsupportedRequest, "request"),
     };
@@ -43,11 +44,38 @@ public sealed class MatchingEngine
 
         var id = TakeNextOrderId();
         var prioritySequence = TakeNextPrioritySequence();
-        var order = new Order(id, OrderType.Limit, side, quantity, prioritySequence, price);
-
-        activeOrders.Add(id, order);
-        orderBook.Add(side, price, prioritySequence, id);
+        AddRestingLimit(id, prioritySequence, side, price, quantity);
         return id;
+    }
+
+    private OperationResult<SubmitResult> SubmitLimit(LimitRequest request)
+    {
+        if (!IsValidSide(request.Side))
+            return OperationResult<SubmitResult>.Failure(EngineErrorCode.InvalidSide, "side");
+        if (request.Price.MinorUnits <= 0)
+            return OperationResult<SubmitResult>.Failure(EngineErrorCode.InvalidPrice, "price");
+        if (request.Quantity <= 0)
+            return OperationResult<SubmitResult>.Failure(EngineErrorCode.NonPositiveQuantity, "quantity");
+        if (orderIdsExhausted)
+            return OperationResult<SubmitResult>.Failure(EngineErrorCode.OrderIdExhausted, "orderId");
+        if (prioritySequencesExhausted)
+            return OperationResult<SubmitResult>.Failure(EngineErrorCode.PrioritySequenceExhausted, "prioritySequence");
+
+        var orderId = TakeNextOrderId();
+        var prioritySequence = TakeNextPrioritySequence();
+        var remainingQuantity = request.Quantity;
+        var trades = ImmutableArray.CreateBuilder<Trade>();
+        Match(request.Side, orderId, ref remainingQuantity, trades, request.Price);
+
+        if (remainingQuantity > 0)
+            AddRestingLimit(orderId, prioritySequence, request.Side, request.Price, remainingQuantity);
+
+        return OperationResult<SubmitResult>.Success(new SubmitResult(
+            orderId,
+            trades.ToImmutable(),
+            request.Quantity - remainingQuantity,
+            remainingQuantity,
+            0));
     }
 
     private OperationResult<SubmitResult> SubmitMarket(MarketRequest request)
@@ -62,7 +90,7 @@ public sealed class MatchingEngine
         var orderId = TakeNextOrderId();
         var remainingQuantity = request.Quantity;
         var trades = ImmutableArray.CreateBuilder<Trade>();
-        Match(request.Side, orderId, ref remainingQuantity, trades);
+        Match(request.Side, orderId, ref remainingQuantity, trades, null);
 
         return OperationResult<SubmitResult>.Success(new SubmitResult(
             orderId,
@@ -76,11 +104,14 @@ public sealed class MatchingEngine
         Side incomingSide,
         OrderId incomingOrderId,
         ref long incomingQuantity,
-        ImmutableArray<Trade>.Builder trades)
+        ImmutableArray<Trade>.Builder trades,
+        Price? limitPrice)
     {
         var restingSide = incomingSide == Side.Buy ? Side.Sell : Side.Buy;
         while (incomingQuantity > 0 && orderBook.TryGetBest(restingSide, out var best))
         {
+            if (limitPrice is { } price && !Crosses(incomingSide, price, best.Price)) break;
+
             var restingOrder = activeOrders[best.OrderId];
             var tradeQuantity = Math.Min(incomingQuantity, restingOrder.RemainingQuantity);
             var buyOrderId = incomingSide == Side.Buy ? incomingOrderId : restingOrder.Id;
@@ -95,6 +126,18 @@ public sealed class MatchingEngine
             orderBook.Remove(restingOrder.Side, best.Price, restingOrder.PrioritySequence);
             activeOrders.Remove(restingOrder.Id);
         }
+    }
+
+    private void AddRestingLimit(
+        OrderId orderId,
+        PrioritySequence prioritySequence,
+        Side side,
+        Price price,
+        long quantity)
+    {
+        var order = new Order(orderId, OrderType.Limit, side, quantity, prioritySequence, price);
+        activeOrders.Add(orderId, order);
+        orderBook.Add(side, price, prioritySequence, orderId);
     }
 
     private ImmutableArray<BookOrderSnapshot> CreateSideSnapshot(Side side) =>
@@ -120,4 +163,7 @@ public sealed class MatchingEngine
     }
 
     private static bool IsValidSide(Side side) => side is Side.Buy or Side.Sell;
+
+    private static bool Crosses(Side incomingSide, Price limitPrice, Price restingPrice) =>
+        incomingSide == Side.Buy ? restingPrice <= limitPrice : restingPrice >= limitPrice;
 }

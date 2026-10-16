@@ -6,7 +6,7 @@ The engine will process orders for one instrument using price-time priority. The
 
 ## Current status
 
-The project now supports limit and market order matching against the in-memory order book.
+The project now supports limit and market order matching plus parsing for the M1 command set.
 
 - [x] .NET 10 solution and xUnit test infrastructure
 - [x] Exact fixed-point price representation and parsing
@@ -15,7 +15,8 @@ The project now supports limit and market order matching against the in-memory o
 - [x] Immutable order book snapshots with order details and remaining quantities
 - [x] Market order matching with partial fills and remainder cancellation
 - [x] Crossing limit orders with passive remainder handling
-- [ ] Command-line interface and book visualization
+- [x] Parsing for limit, market, and print-book commands
+- [ ] Command output formatting and interactive loop
 - [ ] Order cancellation and amendment
 - [ ] Pegged orders
 
@@ -28,6 +29,8 @@ The engine keeps mutable order state in an internal registry and exposes copied 
 Market orders consume the best available prices on the opposite side using FIFO within each price level. Trades use the resting order price, and any quantity left after available liquidity is exhausted is cancelled instead of entering the book.
 
 Limit orders consume only prices equal to or better than their limit. Any remaining quantity rests at the submitted price with its original arrival priority. The matching core preserves `requested = executed + resting + cancelled` for every accepted submission.
+
+The command parser accepts `limit <buy|sell> <price> <qty>`, `market <buy|sell> <qty>`, and `print book`. Keywords are case-insensitive, whitespace is flexible, and numeric input is parsed strictly using culture-independent rules.
 
 ## Build and test
 
@@ -50,7 +53,9 @@ dotnet test --configuration Release --no-build
 
 ```text
 src/MatchingEngine.Core/          Domain and matching engine
+src/MatchingEngine.Cli/           Command parsing and, in later increments, the console application
 tests/MatchingEngine.Core.Tests/  Unit and regression tests
+tests/MatchingEngine.Cli.Tests/   Command-line interface tests
 docs/                             Public design decisions added as the project evolves
 ```
 

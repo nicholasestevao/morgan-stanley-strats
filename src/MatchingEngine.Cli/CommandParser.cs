@@ -1,0 +1,83 @@
+using System.Globalization;
+using MatchingEngine.Core.Domain;
+
+namespace MatchingEngine.Cli;
+
+public static class CommandParser
+{
+    public static CommandParseResult Parse(string? input)
+    {
+        if (string.IsNullOrWhiteSpace(input))
+            return CommandParseResult.Failure(CommandParseErrorCode.EmptyInput, "input");
+
+        var tokens = input.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+        if (Is(tokens[0], "limit")) return ParseLimit(tokens);
+        if (Is(tokens[0], "market")) return ParseMarket(tokens);
+        if (Is(tokens[0], "print")) return ParsePrint(tokens);
+        return CommandParseResult.Failure(CommandParseErrorCode.UnknownCommand, "command");
+    }
+
+    private static CommandParseResult ParseLimit(string[] tokens)
+    {
+        if (tokens.Length != 4)
+            return CommandParseResult.Failure(CommandParseErrorCode.InvalidSyntax, "command");
+        if (!TryParseSide(tokens[1], out var side))
+            return CommandParseResult.Failure(CommandParseErrorCode.InvalidSide, "side");
+        if (!Price.TryParse(tokens[2], out var price, out _))
+            return CommandParseResult.Failure(CommandParseErrorCode.InvalidPrice, "price");
+        if (!TryParseQuantity(tokens[3], out var quantity))
+            return CommandParseResult.Failure(CommandParseErrorCode.InvalidQuantity, "quantity");
+
+        return CommandParseResult.Success(new SubmitOrderCommand(new LimitRequest(side, price, quantity)));
+    }
+
+    private static CommandParseResult ParseMarket(string[] tokens)
+    {
+        if (tokens.Length != 3)
+            return CommandParseResult.Failure(CommandParseErrorCode.InvalidSyntax, "command");
+        if (!TryParseSide(tokens[1], out var side))
+            return CommandParseResult.Failure(CommandParseErrorCode.InvalidSide, "side");
+        if (!TryParseQuantity(tokens[2], out var quantity))
+            return CommandParseResult.Failure(CommandParseErrorCode.InvalidQuantity, "quantity");
+
+        return CommandParseResult.Success(new SubmitOrderCommand(new MarketRequest(side, quantity)));
+    }
+
+    private static CommandParseResult ParsePrint(string[] tokens) =>
+        tokens.Length == 2 && Is(tokens[1], "book")
+            ? CommandParseResult.Success(new PrintBookCommand())
+            : CommandParseResult.Failure(CommandParseErrorCode.InvalidSyntax, "command");
+
+    private static bool TryParseSide(string token, out Side side)
+    {
+        if (Is(token, "buy"))
+        {
+            side = Side.Buy;
+            return true;
+        }
+
+        if (Is(token, "sell"))
+        {
+            side = Side.Sell;
+            return true;
+        }
+
+        side = default;
+        return false;
+    }
+
+    private static bool TryParseQuantity(string token, out long quantity)
+    {
+        foreach (var character in token)
+            if (character is < '0' or > '9')
+            {
+                quantity = default;
+                return false;
+            }
+
+        return long.TryParse(token, NumberStyles.None, CultureInfo.InvariantCulture, out quantity) && quantity > 0;
+    }
+
+    private static bool Is(string value, string expected) =>
+        value.Equals(expected, StringComparison.OrdinalIgnoreCase);
+}

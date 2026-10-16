@@ -1,9 +1,10 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/MatchingEngine.Cli/MatchingEngine.Cli.csproj" />
     <Project Path="src/MatchingEngine.Core/MatchingEngine.Core.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/MatchingEngine.Cli.Tests/MatchingEngine.Cli.Tests.csproj" />
     <Project Path="tests/MatchingEngine.Core.Tests/MatchingEngine.Core.Tests.csproj" />
   </Folder>
 </Solution>
-

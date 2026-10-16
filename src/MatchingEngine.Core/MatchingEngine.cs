@@ -34,6 +34,18 @@ public sealed class MatchingEngine
         _ => OperationResult<SubmitResult>.Failure(EngineErrorCode.UnsupportedRequest, "request"),
     };
 
+    public OperationResult<CancelResult> Cancel(CancelRequest? request)
+    {
+        if (request is null)
+            return OperationResult<CancelResult>.Failure(EngineErrorCode.RequestRequired, "request");
+        if (!activeOrders.TryGetValue(request.OrderId, out var order))
+            return OperationResult<CancelResult>.Failure(EngineErrorCode.OrderNotFound, "orderId");
+
+        var cancelledQuantity = order.RemainingQuantity;
+        RemoveOrder(order);
+        return OperationResult<CancelResult>.Success(new CancelResult(order.Id, cancelledQuantity));
+    }
+
     internal OrderId AddRestingLimit(Side side, Price price, long quantity)
     {
         if (!IsValidSide(side)) throw new ArgumentOutOfRangeException(nameof(side));
@@ -123,9 +135,17 @@ public sealed class MatchingEngine
 
             if (restingOrder.RemainingQuantity > 0) continue;
 
-            orderBook.Remove(restingOrder.Side, best.Price, restingOrder.PrioritySequence);
-            activeOrders.Remove(restingOrder.Id);
+            RemoveOrder(restingOrder);
         }
+    }
+
+    private void RemoveOrder(Order order)
+    {
+        if (order.EffectivePrice is { } price &&
+            !orderBook.Remove(order.Side, price, order.PrioritySequence))
+            throw new InvalidOperationException("Active order is missing from the order book.");
+        if (!activeOrders.Remove(order.Id))
+            throw new InvalidOperationException("Order is missing from the active registry.");
     }
 
     private void AddRestingLimit(

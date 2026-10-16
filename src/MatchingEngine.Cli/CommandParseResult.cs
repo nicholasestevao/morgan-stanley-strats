@@ -8,6 +8,7 @@ public enum CommandParseErrorCode
     InvalidSide,
     InvalidPrice,
     InvalidQuantity,
+    InvalidOrderId,
 }
 
 public sealed record CommandParseError(CommandParseErrorCode Code, string Field);

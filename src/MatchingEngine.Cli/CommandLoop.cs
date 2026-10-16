@@ -29,10 +29,25 @@ public sealed class CommandLoop(Engine engine)
             case SubmitOrderCommand submit:
                 Submit(submit.Request, output);
                 break;
+            case CancelOrderCommand cancel:
+                Cancel(cancel.Request, output);
+                break;
             case PrintBookCommand:
                 WriteLines(OutputFormatter.FormatBook(engine.GetSnapshot()), output);
                 break;
         }
+    }
+
+    private void Cancel(CancelRequest request, TextWriter output)
+    {
+        var result = engine.Cancel(request);
+        if (!result.IsSuccess)
+        {
+            output.WriteLine(OutputFormatter.FormatError(result.Error!));
+            return;
+        }
+
+        output.WriteLine(OutputFormatter.FormatCancellation(result.Value!));
     }
 
     private void Submit(SubmitRequest request, TextWriter output)

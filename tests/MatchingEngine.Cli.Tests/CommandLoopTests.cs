@@ -80,6 +80,27 @@ public sealed class CommandLoopTests
             output);
     }
 
+    [Fact]
+    public void Run_CancelsOrderAndContinuesAfterRepeatedCancellation()
+    {
+        var output = Run(
+            "limit buy 10 100\n" +
+            "cancel order 1\n" +
+            "print book\n" +
+            "cancel order 1\n" +
+            "limit buy 9 50\n");
+
+        Assert.Equal(
+            Lines(
+                "Order accepted, id: 1",
+                "Order cancelled, id: 1, qty: 100",
+                "Buy Orders | Sell Orders",
+                "-----------|------------",
+                "Error: order was not found.",
+                "Order accepted, id: 2"),
+            output);
+    }
+
     private static string Run(string input)
     {
         using var reader = new StringReader(input);

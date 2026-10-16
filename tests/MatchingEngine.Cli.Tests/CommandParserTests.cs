@@ -42,6 +42,17 @@ public sealed class CommandParserTests
         Assert.IsType<PrintBookCommand>(Success(input));
 
     [Theory]
+    [InlineData("cancel order 1", 1UL)]
+    [InlineData("CANCEL ORDER 42", 42UL)]
+    [InlineData("cancel order 18446744073709551615", ulong.MaxValue)]
+    public void Parse_CreatesCancelOrderCommand(string input, ulong expectedOrderId)
+    {
+        var command = Assert.IsType<CancelOrderCommand>(Success(input));
+
+        Assert.Equal(new OrderId(expectedOrderId), command.Request.OrderId);
+    }
+
+    [Theory]
     [InlineData(null)]
     [InlineData("")]
     [InlineData("   ")]
@@ -49,7 +60,6 @@ public sealed class CommandParserTests
         AssertFailure(input, CommandParseErrorCode.EmptyInput, "input");
 
     [Theory]
-    [InlineData("cancel order 1")]
     [InlineData("unknown")]
     public void Parse_RejectsUnknownCommand(string input) =>
         AssertFailure(input, CommandParseErrorCode.UnknownCommand, "command");
@@ -64,6 +74,11 @@ public sealed class CommandParserTests
     [InlineData("print")]
     [InlineData("print trades")]
     [InlineData("print book extra")]
+    [InlineData("cancel")]
+    [InlineData("cancel order")]
+    [InlineData("cancel 1")]
+    [InlineData("cancel orders 1")]
+    [InlineData("cancel order 1 extra")]
     public void Parse_RejectsMissingExtraOrUnexpectedTokens(string input) =>
         AssertFailure(input, CommandParseErrorCode.InvalidSyntax, "command");
 
@@ -92,6 +107,16 @@ public sealed class CommandParserTests
     [InlineData("limit sell 10 ١")]
     public void Parse_RejectsInvalidQuantity(string input) =>
         AssertFailure(input, CommandParseErrorCode.InvalidQuantity, "quantity");
+
+    [Theory]
+    [InlineData("cancel order 0")]
+    [InlineData("cancel order -1")]
+    [InlineData("cancel order +1")]
+    [InlineData("cancel order 1x")]
+    [InlineData("cancel order 18446744073709551616")]
+    [InlineData("cancel order ١")]
+    public void Parse_RejectsInvalidOrderId(string input) =>
+        AssertFailure(input, CommandParseErrorCode.InvalidOrderId, "orderId");
 
     private static CliCommand Success(string input)
     {

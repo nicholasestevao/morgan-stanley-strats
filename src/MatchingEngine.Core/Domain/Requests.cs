@@ -8,3 +8,5 @@ public abstract record SubmitRequest
 public sealed record LimitRequest(Side Side, Price Price, long Quantity) : SubmitRequest;
 
 public sealed record MarketRequest(Side Side, long Quantity) : SubmitRequest;
+
+public sealed record CancelRequest(OrderId OrderId);

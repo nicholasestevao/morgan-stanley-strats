@@ -13,6 +13,7 @@ public sealed class OutputFormatterTests
     [InlineData(CommandParseErrorCode.InvalidSide, "Error: side must be buy or sell.")]
     [InlineData(CommandParseErrorCode.InvalidPrice, "Error: invalid price.")]
     [InlineData(CommandParseErrorCode.InvalidQuantity, "Error: quantity must be a positive integer.")]
+    [InlineData(CommandParseErrorCode.InvalidOrderId, "Error: order ID must be a positive integer.")]
     public void FormatError_FormatsCommandErrors(CommandParseErrorCode code, string expected) =>
         Assert.Equal(expected, OutputFormatter.FormatError(new CommandParseError(code, "field")));
 
@@ -24,6 +25,7 @@ public sealed class OutputFormatterTests
     [InlineData(EngineErrorCode.OrderIdExhausted, "Error: order ID capacity is exhausted.")]
     [InlineData(EngineErrorCode.PrioritySequenceExhausted, "Error: priority capacity is exhausted.")]
     [InlineData(EngineErrorCode.UnsupportedRequest, "Error: unsupported request.")]
+    [InlineData(EngineErrorCode.OrderNotFound, "Error: order was not found.")]
     public void FormatError_FormatsEngineErrors(EngineErrorCode code, string expected) =>
         Assert.Equal(expected, OutputFormatter.FormatError(new EngineError(code, "field")));
 
@@ -63,6 +65,14 @@ public sealed class OutputFormatterTests
                 "Trade, price: 20, qty: 10",
             ],
             OutputFormatter.FormatSubmission(result).ToArray());
+    }
+
+    [Fact]
+    public void FormatCancellation_PrintsOrderIdAndCancelledQuantity()
+    {
+        var result = new CancelResult(new OrderId(42), 75);
+
+        Assert.Equal("Order cancelled, id: 42, qty: 75", OutputFormatter.FormatCancellation(result));
     }
 
     [Fact]

@@ -10,6 +10,7 @@ public enum EngineErrorCode
     NonPositiveQuantity,
     OrderIdExhausted,
     PrioritySequenceExhausted,
+    OrderNotFound,
     UnsupportedRequest,
 }
 
@@ -21,6 +22,8 @@ public sealed record SubmitResult(
     long ExecutedQuantity,
     long RestingQuantity,
     long CancelledQuantity);
+
+public sealed record CancelResult(OrderId OrderId, long CancelledQuantity);
 
 public sealed record OperationResult<T> where T : class
 {

@@ -22,6 +22,7 @@ public static class OutputFormatter
             CommandParseErrorCode.InvalidSide => "Error: side must be buy or sell.",
             CommandParseErrorCode.InvalidPrice => "Error: invalid price.",
             CommandParseErrorCode.InvalidQuantity => "Error: quantity must be a positive integer.",
+            CommandParseErrorCode.InvalidOrderId => "Error: order ID must be a positive integer.",
             _ => "Error: command could not be parsed.",
         };
     }
@@ -38,9 +39,17 @@ public static class OutputFormatter
             EngineErrorCode.NonPositiveQuantity => "Error: quantity must be positive.",
             EngineErrorCode.OrderIdExhausted => "Error: order ID capacity is exhausted.",
             EngineErrorCode.PrioritySequenceExhausted => "Error: priority capacity is exhausted.",
+            EngineErrorCode.OrderNotFound => "Error: order was not found.",
             EngineErrorCode.UnsupportedRequest => "Error: unsupported request.",
             _ => "Error: operation failed.",
         };
+    }
+
+    public static string FormatCancellation(CancelResult result)
+    {
+        ArgumentNullException.ThrowIfNull(result);
+        return $"Order cancelled, id: {result.OrderId.Value.ToString(CultureInfo.InvariantCulture)}, " +
+            $"qty: {result.CancelledQuantity.ToString(CultureInfo.InvariantCulture)}";
     }
 
     public static ImmutableArray<string> FormatSubmission(SubmitResult result)

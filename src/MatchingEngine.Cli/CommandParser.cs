@@ -13,6 +13,7 @@ public static class CommandParser
         var tokens = input.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
         if (Is(tokens[0], "limit")) return ParseLimit(tokens);
         if (Is(tokens[0], "market")) return ParseMarket(tokens);
+        if (Is(tokens[0], "cancel")) return ParseCancel(tokens);
         if (Is(tokens[0], "print")) return ParsePrint(tokens);
         return CommandParseResult.Failure(CommandParseErrorCode.UnknownCommand, "command");
     }
@@ -41,6 +42,16 @@ public static class CommandParser
             return CommandParseResult.Failure(CommandParseErrorCode.InvalidQuantity, "quantity");
 
         return CommandParseResult.Success(new SubmitOrderCommand(new MarketRequest(side, quantity)));
+    }
+
+    private static CommandParseResult ParseCancel(string[] tokens)
+    {
+        if (tokens.Length != 3 || !Is(tokens[1], "order"))
+            return CommandParseResult.Failure(CommandParseErrorCode.InvalidSyntax, "command");
+        if (!TryParseOrderId(tokens[2], out var orderId))
+            return CommandParseResult.Failure(CommandParseErrorCode.InvalidOrderId, "orderId");
+
+        return CommandParseResult.Success(new CancelOrderCommand(new CancelRequest(orderId)));
     }
 
     private static CommandParseResult ParsePrint(string[] tokens) =>
@@ -76,6 +87,20 @@ public static class CommandParser
             }
 
         return long.TryParse(token, NumberStyles.None, CultureInfo.InvariantCulture, out quantity) && quantity > 0;
+    }
+
+    private static bool TryParseOrderId(string token, out OrderId orderId)
+    {
+        foreach (var character in token)
+            if (character is < '0' or > '9')
+            {
+                orderId = default;
+                return false;
+            }
+
+        var isValid = ulong.TryParse(token, NumberStyles.None, CultureInfo.InvariantCulture, out var value) && value > 0;
+        orderId = isValid ? new OrderId(value) : default;
+        return isValid;
     }
 
     private static bool Is(string value, string expected) =>

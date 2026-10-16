@@ -1,0 +1,107 @@
+using System.Collections.Immutable;
+using MatchingEngine.Core.Book;
+using MatchingEngine.Core.Domain;
+
+namespace MatchingEngine.Cli.Tests;
+
+public sealed class OutputFormatterTests
+{
+    [Fact]
+    public void FormatSubmission_PrintsAcceptedOrderIdWithoutTrades()
+    {
+        var result = Result(42);
+
+        Assert.Equal(["Order accepted, id: 42"], OutputFormatter.FormatSubmission(result).ToArray());
+    }
+
+    [Fact]
+    public void FormatSubmission_UsesRequiredTradeFormat()
+    {
+        var result = Result(3, Trade(3, 1, 1_050, 25));
+
+        Assert.Equal(
+            ["Order accepted, id: 3", "Trade, price: 10.5, qty: 25"],
+            OutputFormatter.FormatSubmission(result).ToArray());
+    }
+
+    [Fact]
+    public void FormatSubmission_GroupsOnlyConsecutiveTradesAtTheSamePrice()
+    {
+        var result = Result(
+            7,
+            Trade(7, 1, 2_000, 100),
+            Trade(7, 2, 2_000, 50),
+            Trade(7, 3, 2_100, 25),
+            Trade(7, 4, 2_000, 10));
+
+        Assert.Equal(
+            [
+                "Order accepted, id: 7",
+                "Trade, price: 20, qty: 150",
+                "Trade, price: 21, qty: 25",
+                "Trade, price: 20, qty: 10",
+            ],
+            OutputFormatter.FormatSubmission(result).ToArray());
+    }
+
+    [Fact]
+    public void FormatBook_PrintsHeadersForEmptyBook()
+    {
+        var snapshot = new BookSnapshot([], []);
+
+        Assert.Equal(
+            ["Buy Orders | Sell Orders", "-----------|------------"],
+            OutputFormatter.FormatBook(snapshot).ToArray());
+    }
+
+    [Fact]
+    public void FormatBook_PrintsBothSidesInSnapshotOrder()
+    {
+        var snapshot = new BookSnapshot(
+            [
+                Order(1, Side.Buy, 1_000, 200),
+                Order(2, Side.Buy, 999, 100),
+            ],
+            [Order(3, Side.Sell, 1_050, 100)]);
+
+        Assert.Equal(
+            [
+                "Buy Orders | Sell Orders",
+                "-----------|------------",
+                "200 @ 10   | 100 @ 10.5",
+                "100 @ 9.99 |",
+            ],
+            OutputFormatter.FormatBook(snapshot).ToArray());
+    }
+
+    [Fact]
+    public void FormatBook_ExpandsColumnsForLongValues()
+    {
+        var snapshot = new BookSnapshot(
+            [Order(1, Side.Buy, 1, 1_000_000_000_000)],
+            []);
+
+        Assert.Equal(
+            [
+                "Buy Orders           | Sell Orders",
+                "---------------------|------------",
+                "1000000000000 @ 0.01 |",
+            ],
+            OutputFormatter.FormatBook(snapshot).ToArray());
+    }
+
+    private static SubmitResult Result(ulong id, params Trade[] trades) =>
+        new(new OrderId(id), [.. trades], trades.Sum(trade => trade.Quantity), 0, 0);
+
+    private static Trade Trade(ulong buyId, ulong sellId, long minorUnits, long quantity) =>
+        new(new OrderId(buyId), new OrderId(sellId), PriceOf(minorUnits), quantity);
+
+    private static BookOrderSnapshot Order(ulong id, Side side, long minorUnits, long quantity) =>
+        new(new OrderId(id), side, OrderType.Limit, PriceOf(minorUnits), quantity);
+
+    private static Price PriceOf(long minorUnits)
+    {
+        Assert.True(Price.TryCreate(minorUnits, out var price));
+        return price;
+    }
+}

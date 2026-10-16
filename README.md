@@ -6,7 +6,7 @@ The engine will process orders for one instrument using price-time priority. The
 
 ## Current status
 
-The project now supports limit and market order matching, command parsing, and deterministic text formatting.
+Milestone M1 is complete: the repository contains a runnable in-memory matching engine for limit and market orders.
 
 - [x] .NET 10 solution and xUnit test infrastructure
 - [x] Exact fixed-point price representation and parsing
@@ -17,7 +17,7 @@ The project now supports limit and market order matching, command parsing, and d
 - [x] Crossing limit orders with passive remainder handling
 - [x] Parsing for limit, market, and print-book commands
 - [x] Trade, accepted-order, and order-book output formatting
-- [ ] Interactive command loop
+- [x] Interactive command loop with recoverable input errors
 - [ ] Order cancellation and amendment
 - [ ] Pegged orders
 
@@ -34,6 +34,8 @@ Limit orders consume only prices equal to or better than their limit. Any remain
 The command parser accepts `limit <buy|sell> <price> <qty>`, `market <buy|sell> <qty>`, and `print book`. Keywords are case-insensitive, whitespace is flexible, and numeric input is parsed strictly using culture-independent rules.
 
 Accepted submissions print their generated ID. Consecutive trades at the same price are grouped as `Trade, price: <price>, qty: <quantity>`. Book output displays bids and asks in aligned columns while preserving snapshot priority order.
+
+The command loop processes standard input sequentially and writes results to standard output. Invalid lines produce an error without changing the book or terminating the process. End-of-file exits normally.
 
 ## Build and test
 
@@ -52,11 +54,17 @@ dotnet build --configuration Release
 dotnet test --configuration Release --no-build
 ```
 
+Run the command-line application after building:
+
+```sh
+dotnet run --project src/MatchingEngine.Cli --no-build
+```
+
 ## Project layout
 
 ```text
 src/MatchingEngine.Core/          Domain and matching engine
-src/MatchingEngine.Cli/           Command parsing and, in later increments, the console application
+src/MatchingEngine.Cli/           Command-line application, parsing, and output formatting
 tests/MatchingEngine.Core.Tests/  Unit and regression tests
 tests/MatchingEngine.Cli.Tests/   Command-line interface tests
 docs/                             Public design decisions added as the project evolves

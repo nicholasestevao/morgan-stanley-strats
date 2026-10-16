@@ -10,6 +10,39 @@ public static class OutputFormatter
     private const string BuyHeader = "Buy Orders";
     private const string SellHeader = "Sell Orders";
 
+    public static string FormatError(CommandParseError error)
+    {
+        ArgumentNullException.ThrowIfNull(error);
+
+        return error.Code switch
+        {
+            CommandParseErrorCode.EmptyInput => "Error: input is empty.",
+            CommandParseErrorCode.UnknownCommand => "Error: unknown command.",
+            CommandParseErrorCode.InvalidSyntax => "Error: invalid command syntax.",
+            CommandParseErrorCode.InvalidSide => "Error: side must be buy or sell.",
+            CommandParseErrorCode.InvalidPrice => "Error: invalid price.",
+            CommandParseErrorCode.InvalidQuantity => "Error: quantity must be a positive integer.",
+            _ => "Error: command could not be parsed.",
+        };
+    }
+
+    public static string FormatError(EngineError error)
+    {
+        ArgumentNullException.ThrowIfNull(error);
+
+        return error.Code switch
+        {
+            EngineErrorCode.RequestRequired => "Error: request is required.",
+            EngineErrorCode.InvalidSide => "Error: side must be buy or sell.",
+            EngineErrorCode.InvalidPrice => "Error: invalid price.",
+            EngineErrorCode.NonPositiveQuantity => "Error: quantity must be positive.",
+            EngineErrorCode.OrderIdExhausted => "Error: order ID capacity is exhausted.",
+            EngineErrorCode.PrioritySequenceExhausted => "Error: priority capacity is exhausted.",
+            EngineErrorCode.UnsupportedRequest => "Error: unsupported request.",
+            _ => "Error: operation failed.",
+        };
+    }
+
     public static ImmutableArray<string> FormatSubmission(SubmitResult result)
     {
         ArgumentNullException.ThrowIfNull(result);

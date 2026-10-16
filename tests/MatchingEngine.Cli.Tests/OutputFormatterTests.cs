@@ -6,6 +6,27 @@ namespace MatchingEngine.Cli.Tests;
 
 public sealed class OutputFormatterTests
 {
+    [Theory]
+    [InlineData(CommandParseErrorCode.EmptyInput, "Error: input is empty.")]
+    [InlineData(CommandParseErrorCode.UnknownCommand, "Error: unknown command.")]
+    [InlineData(CommandParseErrorCode.InvalidSyntax, "Error: invalid command syntax.")]
+    [InlineData(CommandParseErrorCode.InvalidSide, "Error: side must be buy or sell.")]
+    [InlineData(CommandParseErrorCode.InvalidPrice, "Error: invalid price.")]
+    [InlineData(CommandParseErrorCode.InvalidQuantity, "Error: quantity must be a positive integer.")]
+    public void FormatError_FormatsCommandErrors(CommandParseErrorCode code, string expected) =>
+        Assert.Equal(expected, OutputFormatter.FormatError(new CommandParseError(code, "field")));
+
+    [Theory]
+    [InlineData(EngineErrorCode.RequestRequired, "Error: request is required.")]
+    [InlineData(EngineErrorCode.InvalidSide, "Error: side must be buy or sell.")]
+    [InlineData(EngineErrorCode.InvalidPrice, "Error: invalid price.")]
+    [InlineData(EngineErrorCode.NonPositiveQuantity, "Error: quantity must be positive.")]
+    [InlineData(EngineErrorCode.OrderIdExhausted, "Error: order ID capacity is exhausted.")]
+    [InlineData(EngineErrorCode.PrioritySequenceExhausted, "Error: priority capacity is exhausted.")]
+    [InlineData(EngineErrorCode.UnsupportedRequest, "Error: unsupported request.")]
+    public void FormatError_FormatsEngineErrors(EngineErrorCode code, string expected) =>
+        Assert.Equal(expected, OutputFormatter.FormatError(new EngineError(code, "field")));
+
     [Fact]
     public void FormatSubmission_PrintsAcceptedOrderIdWithoutTrades()
     {

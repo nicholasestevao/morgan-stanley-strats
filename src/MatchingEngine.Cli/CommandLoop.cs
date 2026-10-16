@@ -1,0 +1,54 @@
+using MatchingEngine.Core.Domain;
+using Engine = MatchingEngine.Core.MatchingEngine;
+
+namespace MatchingEngine.Cli;
+
+public sealed class CommandLoop(Engine engine)
+{
+    public void Run(TextReader input, TextWriter output)
+    {
+        ArgumentNullException.ThrowIfNull(input);
+        ArgumentNullException.ThrowIfNull(output);
+
+        string? line;
+        while ((line = input.ReadLine()) is not null)
+            Execute(line, output);
+    }
+
+    private void Execute(string line, TextWriter output)
+    {
+        var parsed = CommandParser.Parse(line);
+        if (!parsed.IsSuccess)
+        {
+            output.WriteLine(OutputFormatter.FormatError(parsed.Error!));
+            return;
+        }
+
+        switch (parsed.Command)
+        {
+            case SubmitOrderCommand submit:
+                Submit(submit.Request, output);
+                break;
+            case PrintBookCommand:
+                WriteLines(OutputFormatter.FormatBook(engine.GetSnapshot()), output);
+                break;
+        }
+    }
+
+    private void Submit(SubmitRequest request, TextWriter output)
+    {
+        var result = engine.Submit(request);
+        if (!result.IsSuccess)
+        {
+            output.WriteLine(OutputFormatter.FormatError(result.Error!));
+            return;
+        }
+
+        WriteLines(OutputFormatter.FormatSubmission(result.Value!), output);
+    }
+
+    private static void WriteLines(IEnumerable<string> lines, TextWriter output)
+    {
+        foreach (var line in lines) output.WriteLine(line);
+    }
+}

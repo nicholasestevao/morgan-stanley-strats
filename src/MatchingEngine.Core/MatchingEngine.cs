@@ -46,6 +46,32 @@ public sealed class MatchingEngine
         return OperationResult<CancelResult>.Success(new CancelResult(order.Id, cancelledQuantity));
     }
 
+    public OperationResult<AmendResult> Amend(AmendRequest? request)
+    {
+        if (request is null)
+            return OperationResult<AmendResult>.Failure(EngineErrorCode.RequestRequired, "request");
+        if (request.Price is not null || request.Quantity is null)
+            return OperationResult<AmendResult>.Failure(EngineErrorCode.UnsupportedRequest, "request");
+        if (request.Quantity <= 0)
+            return OperationResult<AmendResult>.Failure(EngineErrorCode.NonPositiveQuantity, "quantity");
+        if (!activeOrders.TryGetValue(request.OrderId, out var order))
+            return OperationResult<AmendResult>.Failure(EngineErrorCode.OrderNotFound, "orderId");
+
+        var quantity = request.Quantity.Value;
+        if (quantity > order.RemainingQuantity)
+        {
+            if (prioritySequencesExhausted)
+                return OperationResult<AmendResult>.Failure(
+                    EngineErrorCode.PrioritySequenceExhausted,
+                    "prioritySequence");
+
+            RequeueWithNewPriority(order);
+        }
+
+        order.RemainingQuantity = quantity;
+        return OperationResult<AmendResult>.Success(new AmendResult(order.Id, [], 0, quantity));
+    }
+
     internal OrderId AddRestingLimit(Side side, Price price, long quantity)
     {
         if (!IsValidSide(side)) throw new ArgumentOutOfRangeException(nameof(side));
@@ -146,6 +172,16 @@ public sealed class MatchingEngine
             throw new InvalidOperationException("Active order is missing from the order book.");
         if (!activeOrders.Remove(order.Id))
             throw new InvalidOperationException("Order is missing from the active registry.");
+    }
+
+    private void RequeueWithNewPriority(Order order)
+    {
+        var price = order.EffectivePrice!.Value;
+        if (!orderBook.Remove(order.Side, price, order.PrioritySequence))
+            throw new InvalidOperationException("Active order is missing from the order book.");
+
+        order.PrioritySequence = TakeNextPrioritySequence();
+        orderBook.Add(order.Side, price, order.PrioritySequence, order.Id);
     }
 
     private void AddRestingLimit(

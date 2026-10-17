@@ -32,6 +32,9 @@ public sealed class CommandLoop(Engine engine)
             case CancelOrderCommand cancel:
                 Cancel(cancel.Request, output);
                 break;
+            case AmendOrderCommand amend:
+                Amend(amend.Request, output);
+                break;
             case PrintBookCommand:
                 WriteLines(OutputFormatter.FormatBook(engine.GetSnapshot()), output);
                 break;
@@ -48,6 +51,18 @@ public sealed class CommandLoop(Engine engine)
         }
 
         output.WriteLine(OutputFormatter.FormatCancellation(result.Value!));
+    }
+
+    private void Amend(AmendRequest request, TextWriter output)
+    {
+        var result = engine.Amend(request);
+        if (!result.IsSuccess)
+        {
+            output.WriteLine(OutputFormatter.FormatError(result.Error!));
+            return;
+        }
+
+        WriteLines(OutputFormatter.FormatAmendment(result.Value!), output);
     }
 
     private void Submit(SubmitRequest request, TextWriter output)

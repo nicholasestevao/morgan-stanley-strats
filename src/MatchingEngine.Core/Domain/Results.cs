@@ -25,6 +25,12 @@ public sealed record SubmitResult(
 
 public sealed record CancelResult(OrderId OrderId, long CancelledQuantity);
 
+public sealed record AmendResult(
+    OrderId OrderId,
+    ImmutableArray<Trade> Trades,
+    long ExecutedQuantity,
+    long RestingQuantity);
+
 public sealed record OperationResult<T> where T : class
 {
     private OperationResult(T? value, EngineError? error)

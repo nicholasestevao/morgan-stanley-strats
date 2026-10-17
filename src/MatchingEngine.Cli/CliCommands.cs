@@ -11,4 +11,6 @@ public sealed record SubmitOrderCommand(SubmitRequest Request) : CliCommand;
 
 public sealed record CancelOrderCommand(CancelRequest Request) : CliCommand;
 
+public sealed record AmendOrderCommand(AmendRequest Request) : CliCommand;
+
 public sealed record PrintBookCommand : CliCommand;

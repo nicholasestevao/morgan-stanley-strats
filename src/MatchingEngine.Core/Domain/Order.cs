@@ -16,7 +16,7 @@ internal sealed class Order(
 
     public long RemainingQuantity { get; set; } = remainingQuantity;
 
-    public PrioritySequence PrioritySequence { get; } = prioritySequence;
+    public PrioritySequence PrioritySequence { get; set; } = prioritySequence;
 
     public Price? EffectivePrice { get; set; } = effectivePrice;
 }

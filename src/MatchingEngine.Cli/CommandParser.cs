@@ -14,6 +14,7 @@ public static class CommandParser
         if (Is(tokens[0], "limit")) return ParseLimit(tokens);
         if (Is(tokens[0], "market")) return ParseMarket(tokens);
         if (Is(tokens[0], "cancel")) return ParseCancel(tokens);
+        if (Is(tokens[0], "amend")) return ParseAmend(tokens);
         if (Is(tokens[0], "print")) return ParsePrint(tokens);
         return CommandParseResult.Failure(CommandParseErrorCode.UnknownCommand, "command");
     }
@@ -52,6 +53,19 @@ public static class CommandParser
             return CommandParseResult.Failure(CommandParseErrorCode.InvalidOrderId, "orderId");
 
         return CommandParseResult.Success(new CancelOrderCommand(new CancelRequest(orderId)));
+    }
+
+    private static CommandParseResult ParseAmend(string[] tokens)
+    {
+        if (tokens.Length != 5 || !Is(tokens[1], "order") || !Is(tokens[3], "qty"))
+            return CommandParseResult.Failure(CommandParseErrorCode.InvalidSyntax, "command");
+        if (!TryParseOrderId(tokens[2], out var orderId))
+            return CommandParseResult.Failure(CommandParseErrorCode.InvalidOrderId, "orderId");
+        if (!TryParseQuantity(tokens[4], out var quantity))
+            return CommandParseResult.Failure(CommandParseErrorCode.InvalidQuantity, "quantity");
+
+        return CommandParseResult.Success(new AmendOrderCommand(
+            new AmendRequest(orderId, Quantity: quantity)));
     }
 
     private static CommandParseResult ParsePrint(string[] tokens) =>

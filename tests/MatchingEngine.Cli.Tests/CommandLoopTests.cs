@@ -101,6 +101,26 @@ public sealed class CommandLoopTests
             output);
     }
 
+    [Fact]
+    public void Run_AmendsQuantityAndContinuesAfterInvalidAmendment()
+    {
+        var output = Run(
+            "limit sell 10 100\n" +
+            "amend order 1 qty 60\n" +
+            "amend order 1 qty 0\n" +
+            "print book\n");
+
+        Assert.Equal(
+            Lines(
+                "Order accepted, id: 1",
+                "Order amended, id: 1, qty: 60",
+                "Error: quantity must be a positive integer.",
+                "Buy Orders | Sell Orders",
+                "-----------|------------",
+                "           | 60 @ 10"),
+            output);
+    }
+
     private static string Run(string input)
     {
         using var reader = new StringReader(input);

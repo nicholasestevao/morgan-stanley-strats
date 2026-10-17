@@ -6,7 +6,7 @@ The engine will process orders for one instrument using price-time priority. The
 
 ## Current status
 
-Milestone M1 is complete, and M2 order management now includes cancellation of resting orders.
+Milestone M1 is complete, and M2 order management now includes cancellation and remaining-quantity amendment.
 
 - [x] .NET 10 solution and xUnit test infrastructure
 - [x] Exact fixed-point price representation and parsing
@@ -19,7 +19,8 @@ Milestone M1 is complete, and M2 order management now includes cancellation of r
 - [x] Trade, accepted-order, and order-book output formatting
 - [x] Interactive command loop with recoverable input errors
 - [x] Cancellation of active resting orders by ID
-- [ ] Order price and quantity amendment
+- [x] Remaining-quantity amendment with priority updates
+- [ ] Order price amendment
 - [ ] Pegged orders
 
 Prices are stored as signed 64-bit minor units and are parsed without floating-point conversion. Accepted input has at most two decimal places and uses a dot as the decimal separator.
@@ -32,13 +33,15 @@ Market orders consume the best available prices on the opposite side using FIFO 
 
 Limit orders consume only prices equal to or better than their limit. Any remaining quantity rests at the submitted price with its original arrival priority. The matching core preserves `requested = executed + resting + cancelled` for every accepted submission.
 
-The command parser accepts `limit <buy|sell> <price> <qty>`, `market <buy|sell> <qty>`, `cancel order <id>`, and `print book`. Keywords are case-insensitive, whitespace is flexible, and numeric input is parsed strictly using culture-independent rules.
+The command parser accepts `limit <buy|sell> <price> <qty>`, `market <buy|sell> <qty>`, `cancel order <id>`, `amend order <id> qty <remaining_qty>`, and `print book`. Keywords are case-insensitive, whitespace is flexible, and numeric input is parsed strictly using culture-independent rules.
 
 Accepted submissions print their generated ID. Consecutive trades at the same price are grouped as `Trade, price: <price>, qty: <quantity>`. Book output displays bids and asks in aligned columns while preserving snapshot priority order.
 
 The command loop processes standard input sequentially and writes results to standard output. Invalid lines produce an error without changing the book or terminating the process. End-of-file exits normally.
 
 Cancelling an active order removes its remaining quantity from both the order registry and the price-time index. Missing, fully executed, or previously cancelled IDs return an error without changing the book.
+
+Amending quantity replaces the order's current remaining quantity. Reductions and no-op amendments preserve time priority, while increases assign a new priority sequence and move the order behind existing orders at the same price. Invalid amendments leave the order book unchanged.
 
 ## Build and test
 

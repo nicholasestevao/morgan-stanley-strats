@@ -76,6 +76,16 @@ public sealed class OutputFormatterTests
     }
 
     [Fact]
+    public void FormatAmendment_PrintsOrderIdAndRemainingQuantity()
+    {
+        var result = new AmendResult(new OrderId(42), [], 0, 75);
+
+        Assert.Equal(
+            ["Order amended, id: 42, qty: 75"],
+            OutputFormatter.FormatAmendment(result).ToArray());
+    }
+
+    [Fact]
     public void FormatBook_PrintsHeadersForEmptyBook()
     {
         var snapshot = new BookSnapshot([], []);

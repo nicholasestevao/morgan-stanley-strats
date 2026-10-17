@@ -58,19 +58,35 @@ public static class OutputFormatter
 
         var lines = ImmutableArray.CreateBuilder<string>();
         lines.Add($"Order accepted, id: {result.OrderId.Value.ToString(CultureInfo.InvariantCulture)}");
+        AppendTrades(lines, result.Trades);
+        return lines.ToImmutable();
+    }
 
-        for (var index = 0; index < result.Trades.Length;)
+    public static ImmutableArray<string> FormatAmendment(AmendResult result)
+    {
+        ArgumentNullException.ThrowIfNull(result);
+
+        var lines = ImmutableArray.CreateBuilder<string>();
+        lines.Add($"Order amended, id: {result.OrderId.Value.ToString(CultureInfo.InvariantCulture)}, " +
+            $"qty: {result.RestingQuantity.ToString(CultureInfo.InvariantCulture)}");
+        AppendTrades(lines, result.Trades);
+        return lines.ToImmutable();
+    }
+
+    private static void AppendTrades(
+        ImmutableArray<string>.Builder lines,
+        ImmutableArray<Trade> trades)
+    {
+        for (var index = 0; index < trades.Length;)
         {
-            var price = result.Trades[index].Price;
+            var price = trades[index].Price;
             long quantity = 0;
 
-            do quantity += result.Trades[index++].Quantity;
-            while (index < result.Trades.Length && result.Trades[index].Price == price);
+            do quantity += trades[index++].Quantity;
+            while (index < trades.Length && trades[index].Price == price);
 
             lines.Add($"Trade, price: {price}, qty: {quantity.ToString(CultureInfo.InvariantCulture)}");
         }
-
-        return lines.ToImmutable();
     }
 
     public static ImmutableArray<string> FormatBook(BookSnapshot snapshot)

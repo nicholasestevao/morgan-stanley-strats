@@ -6,7 +6,7 @@ The engine will process orders for one instrument using price-time priority. The
 
 ## Current status
 
-Milestones M1 and M2 are complete: the engine supports matching plus cancellation and amendment of active orders.
+Milestones M1 and M2 are complete. M3 now includes pegged-order submission, fixed-limit reference lookup, and suspension when a reference is unavailable.
 
 - [x] .NET 10 solution and xUnit test infrastructure
 - [x] Exact fixed-point price representation and parsing
@@ -21,7 +21,9 @@ Milestones M1 and M2 are complete: the engine supports matching plus cancellatio
 - [x] Cancellation of active resting orders by ID
 - [x] Remaining-quantity amendment with priority updates
 - [x] Price amendment with matching and combined quantity updates
-- [ ] Pegged orders
+- [x] Pegged-order reference tracking and suspension
+- [ ] Automatic pegged-order repricing
+- [ ] Stabilized pegged-order matching
 
 Prices are stored as signed 64-bit minor units and are parsed without floating-point conversion. Accepted input has at most two decimal places and uses a dot as the decimal separator.
 
@@ -33,7 +35,7 @@ Market orders consume the best available prices on the opposite side using FIFO 
 
 Limit orders consume only prices equal to or better than their limit. Any remaining quantity rests at the submitted price with its original arrival priority. The matching core preserves `requested = executed + resting + cancelled` for every accepted submission.
 
-The command parser accepts `limit <buy|sell> <price> <qty>`, `market <buy|sell> <qty>`, `cancel order <id>`, `amend order <id> qty <remaining_qty>`, `amend order <id> price <price>`, the combined price-and-quantity amendment, and `print book`. Keywords are case-insensitive, whitespace is flexible, and numeric input is parsed strictly using culture-independent rules.
+The command parser accepts limit, market, cancellation, amendment, print-book, and `peg <bid|offer> <buy|sell> <qty>` commands. Keywords are case-insensitive, whitespace is flexible, and numeric input is parsed strictly using culture-independent rules.
 
 Accepted submissions print their generated ID. Consecutive trades at the same price are grouped as `Trade, price: <price>, qty: <quantity>`. Book output displays bids and asks in aligned columns while preserving snapshot priority order.
 
@@ -44,6 +46,8 @@ Cancelling an active order removes its remaining quantity from both the order re
 Amending quantity replaces the order's current remaining quantity. Reductions and no-op amendments preserve time priority, while increases assign a new priority sequence and move the order behind existing orders at the same price. Invalid amendments leave the order book unchanged.
 
 Changing an order's price assigns a new priority sequence and may immediately produce trades under the same rules as a new limit order. Trades use resting counterparty prices, the amended order keeps its ID, and any unmatched quantity rests at the new price.
+
+A pegged order derives its effective price from the best active fixed-price limit on its selected bid or offer reference. Other pegged orders never contribute to that reference. If no fixed reference exists, the order remains active but suspended outside the executable book and appears in a separate snapshot section. Cancellation and quantity amendment also apply to suspended orders, while direct price amendment is rejected. Automatic repricing after later reference changes is the next M3 increment; reference lookup currently scans active orders in `O(N)` time.
 
 ## Build and test
 

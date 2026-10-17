@@ -13,6 +13,7 @@ public static class CommandParser
         var tokens = input.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
         if (Is(tokens[0], "limit")) return ParseLimit(tokens);
         if (Is(tokens[0], "market")) return ParseMarket(tokens);
+        if (Is(tokens[0], "peg")) return ParsePegged(tokens);
         if (Is(tokens[0], "cancel")) return ParseCancel(tokens);
         if (Is(tokens[0], "amend")) return ParseAmend(tokens);
         if (Is(tokens[0], "print")) return ParsePrint(tokens);
@@ -43,6 +44,21 @@ public static class CommandParser
             return CommandParseResult.Failure(CommandParseErrorCode.InvalidQuantity, "quantity");
 
         return CommandParseResult.Success(new SubmitOrderCommand(new MarketRequest(side, quantity)));
+    }
+
+    private static CommandParseResult ParsePegged(string[] tokens)
+    {
+        if (tokens.Length != 4)
+            return CommandParseResult.Failure(CommandParseErrorCode.InvalidSyntax, "command");
+        if (!TryParsePegReference(tokens[1], out var reference))
+            return CommandParseResult.Failure(CommandParseErrorCode.InvalidPegReference, "reference");
+        if (!TryParseSide(tokens[2], out var side))
+            return CommandParseResult.Failure(CommandParseErrorCode.InvalidSide, "side");
+        if (!TryParseQuantity(tokens[3], out var quantity))
+            return CommandParseResult.Failure(CommandParseErrorCode.InvalidQuantity, "quantity");
+
+        return CommandParseResult.Success(
+            new SubmitOrderCommand(new PeggedRequest(reference, side, quantity)));
     }
 
     private static CommandParseResult ParseCancel(string[] tokens)
@@ -109,6 +125,23 @@ public static class CommandParser
         }
 
         side = default;
+        return false;
+    }
+
+    private static bool TryParsePegReference(string token, out PegReference reference)
+    {
+        if (Is(token, "bid"))
+        {
+            reference = PegReference.Bid;
+            return true;
+        }
+        if (Is(token, "offer"))
+        {
+            reference = PegReference.Offer;
+            return true;
+        }
+
+        reference = default;
         return false;
     }
 

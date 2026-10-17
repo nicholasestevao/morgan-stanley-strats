@@ -6,11 +6,13 @@ public enum EngineErrorCode
 {
     RequestRequired,
     InvalidSide,
+    InvalidPegReference,
     InvalidPrice,
     NonPositiveQuantity,
     OrderIdExhausted,
     PrioritySequenceExhausted,
     OrderNotFound,
+    PriceAmendmentNotAllowed,
     UnsupportedRequest,
 }
 

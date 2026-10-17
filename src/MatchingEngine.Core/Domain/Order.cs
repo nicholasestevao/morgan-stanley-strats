@@ -6,7 +6,9 @@ internal sealed class Order(
     Side side,
     long remainingQuantity,
     PrioritySequence prioritySequence,
-    Price? effectivePrice)
+    Price? effectivePrice,
+    PegReference? pegReference = null,
+    OrderState state = OrderState.Resting)
 {
     public OrderId Id { get; } = id;
 
@@ -19,4 +21,8 @@ internal sealed class Order(
     public PrioritySequence PrioritySequence { get; set; } = prioritySequence;
 
     public Price? EffectivePrice { get; set; } = effectivePrice;
+
+    public PegReference? PegReference { get; } = pegReference;
+
+    public OrderState State { get; set; } = state;
 }

@@ -6,6 +6,7 @@ public enum CommandParseErrorCode
     UnknownCommand,
     InvalidSyntax,
     InvalidSide,
+    InvalidPegReference,
     InvalidPrice,
     InvalidQuantity,
     InvalidOrderId,

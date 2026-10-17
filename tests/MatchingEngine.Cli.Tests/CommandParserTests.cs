@@ -36,6 +36,25 @@ public sealed class CommandParserTests
     }
 
     [Theory]
+    [InlineData("peg bid buy 100", PegReference.Bid, Side.Buy, 100)]
+    [InlineData("PEG BID SELL 25", PegReference.Bid, Side.Sell, 25)]
+    [InlineData("peg offer buy 10", PegReference.Offer, Side.Buy, 10)]
+    [InlineData("peg offer sell 1", PegReference.Offer, Side.Sell, 1)]
+    public void Parse_CreatesPeggedRequest(
+        string input,
+        PegReference expectedReference,
+        Side expectedSide,
+        long expectedQuantity)
+    {
+        var command = Assert.IsType<SubmitOrderCommand>(Success(input));
+        var request = Assert.IsType<PeggedRequest>(command.Request);
+
+        Assert.Equal(expectedReference, request.Reference);
+        Assert.Equal(expectedSide, request.Side);
+        Assert.Equal(expectedQuantity, request.Quantity);
+    }
+
+    [Theory]
     [InlineData("print book")]
     [InlineData("PRINT BOOK")]
     public void Parse_CreatesPrintBookCommand(string input) =>
@@ -112,6 +131,10 @@ public sealed class CommandParserTests
     [InlineData("market")]
     [InlineData("market buy")]
     [InlineData("market buy 1 extra")]
+    [InlineData("peg")]
+    [InlineData("peg bid")]
+    [InlineData("peg bid buy")]
+    [InlineData("peg bid buy 10 extra")]
     [InlineData("print")]
     [InlineData("print trades")]
     [InlineData("print book extra")]
@@ -138,8 +161,15 @@ public sealed class CommandParserTests
     [Theory]
     [InlineData("limit hold 10 1")]
     [InlineData("market bid 1")]
+    [InlineData("peg bid hold 1")]
     public void Parse_RejectsInvalidSide(string input) =>
         AssertFailure(input, CommandParseErrorCode.InvalidSide, "side");
+
+    [Theory]
+    [InlineData("peg mid buy 10")]
+    [InlineData("peg best sell 10")]
+    public void Parse_RejectsInvalidPegReference(string input) =>
+        AssertFailure(input, CommandParseErrorCode.InvalidPegReference, "reference");
 
     [Theory]
     [InlineData("limit buy 0 1")]
@@ -158,6 +188,9 @@ public sealed class CommandParserTests
     [InlineData("market buy 10x")]
     [InlineData("market buy 9223372036854775808")]
     [InlineData("limit sell 10 ١")]
+    [InlineData("peg bid buy 0")]
+    [InlineData("peg offer sell -1")]
+    [InlineData("peg bid buy 9223372036854775808")]
     public void Parse_RejectsInvalidQuantity(string input) =>
         AssertFailure(input, CommandParseErrorCode.InvalidQuantity, "quantity");
 

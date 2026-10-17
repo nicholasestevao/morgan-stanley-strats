@@ -24,13 +24,17 @@ public sealed class MatchingEngine
         this.nextPrioritySequence = nextPrioritySequence;
     }
 
-    public BookSnapshot GetSnapshot() => new(CreateSideSnapshot(Side.Buy), CreateSideSnapshot(Side.Sell));
+    public BookSnapshot GetSnapshot() => new(
+        CreateSideSnapshot(Side.Buy),
+        CreateSideSnapshot(Side.Sell),
+        CreateSuspendedSnapshot());
 
     public OperationResult<SubmitResult> Submit(SubmitRequest? request) => request switch
     {
         null => OperationResult<SubmitResult>.Failure(EngineErrorCode.RequestRequired, "request"),
         LimitRequest limit => SubmitLimit(limit),
         MarketRequest market => SubmitMarket(market),
+        PeggedRequest pegged => SubmitPegged(pegged),
         _ => OperationResult<SubmitResult>.Failure(EngineErrorCode.UnsupportedRequest, "request"),
     };
 
@@ -58,6 +62,27 @@ public sealed class MatchingEngine
             return OperationResult<AmendResult>.Failure(EngineErrorCode.NonPositiveQuantity, "quantity");
         if (!activeOrders.TryGetValue(request.OrderId, out var order))
             return OperationResult<AmendResult>.Failure(EngineErrorCode.OrderNotFound, "orderId");
+        if (order.Type == OrderType.Pegged && request.Price is not null)
+            return OperationResult<AmendResult>.Failure(
+                EngineErrorCode.PriceAmendmentNotAllowed,
+                "price");
+
+        if (order.State == OrderState.Suspended)
+        {
+            var suspendedQuantity = request.Quantity!.Value;
+            if (suspendedQuantity > order.RemainingQuantity)
+            {
+                if (prioritySequencesExhausted)
+                    return OperationResult<AmendResult>.Failure(
+                        EngineErrorCode.PrioritySequenceExhausted,
+                        "prioritySequence");
+                order.PrioritySequence = TakeNextPrioritySequence();
+            }
+
+            order.RemainingQuantity = suspendedQuantity;
+            return OperationResult<AmendResult>.Success(
+                new AmendResult(order.Id, [], 0, suspendedQuantity));
+        }
 
         var currentPrice = order.EffectivePrice!.Value;
         var price = request.Price ?? currentPrice;
@@ -162,6 +187,66 @@ public sealed class MatchingEngine
             remainingQuantity));
     }
 
+    private OperationResult<SubmitResult> SubmitPegged(PeggedRequest request)
+    {
+        if (!IsValidPegReference(request.Reference))
+            return OperationResult<SubmitResult>.Failure(
+                EngineErrorCode.InvalidPegReference,
+                "reference");
+        if (!IsValidSide(request.Side))
+            return OperationResult<SubmitResult>.Failure(EngineErrorCode.InvalidSide, "side");
+        if (request.Quantity <= 0)
+            return OperationResult<SubmitResult>.Failure(EngineErrorCode.NonPositiveQuantity, "quantity");
+        if (orderIdsExhausted)
+            return OperationResult<SubmitResult>.Failure(EngineErrorCode.OrderIdExhausted, "orderId");
+        if (prioritySequencesExhausted)
+            return OperationResult<SubmitResult>.Failure(
+                EngineErrorCode.PrioritySequenceExhausted,
+                "prioritySequence");
+
+        var orderId = TakeNextOrderId();
+        var prioritySequence = TakeNextPrioritySequence();
+        var referencePrice = FindReferencePrice(request.Reference);
+        if (referencePrice is null)
+        {
+            activeOrders.Add(orderId, new Order(
+                orderId,
+                OrderType.Pegged,
+                request.Side,
+                request.Quantity,
+                prioritySequence,
+                null,
+                request.Reference,
+                OrderState.Suspended));
+            return OperationResult<SubmitResult>.Success(
+                new SubmitResult(orderId, [], 0, request.Quantity, 0));
+        }
+
+        var remainingQuantity = request.Quantity;
+        var trades = ImmutableArray.CreateBuilder<Trade>();
+        Match(request.Side, orderId, ref remainingQuantity, trades, referencePrice);
+        if (remainingQuantity > 0)
+        {
+            var order = new Order(
+                orderId,
+                OrderType.Pegged,
+                request.Side,
+                remainingQuantity,
+                prioritySequence,
+                referencePrice,
+                request.Reference);
+            activeOrders.Add(orderId, order);
+            orderBook.Add(request.Side, referencePrice.Value, prioritySequence, orderId);
+        }
+
+        return OperationResult<SubmitResult>.Success(new SubmitResult(
+            orderId,
+            trades.ToImmutable(),
+            request.Quantity - remainingQuantity,
+            remainingQuantity,
+            0));
+    }
+
     private void Match(
         Side incomingSide,
         OrderId incomingOrderId,
@@ -218,8 +303,40 @@ public sealed class MatchingEngine
     private ImmutableArray<BookOrderSnapshot> CreateSideSnapshot(Side side) =>
         [.. orderBook.Enumerate(side).Select(entry => ToSnapshot(activeOrders[entry.OrderId]))];
 
+    private ImmutableArray<SuspendedOrderSnapshot> CreateSuspendedSnapshot() =>
+        [.. activeOrders.Values
+            .Where(order => order.State == OrderState.Suspended)
+            .OrderBy(order => order.PrioritySequence)
+            .Select(order => new SuspendedOrderSnapshot(
+                order.Id,
+                order.Side,
+                order.PegReference!.Value,
+                order.RemainingQuantity))];
+
     private static BookOrderSnapshot ToSnapshot(Order order) =>
-        new(order.Id, order.Side, order.Type, order.EffectivePrice!.Value, order.RemainingQuantity);
+        new(
+            order.Id,
+            order.Side,
+            order.Type,
+            order.EffectivePrice!.Value,
+            order.RemainingQuantity,
+            order.PegReference);
+
+    private Price? FindReferencePrice(PegReference reference)
+    {
+        var side = reference == PegReference.Bid ? Side.Buy : Side.Sell;
+        Price? bestPrice = null;
+        foreach (var order in activeOrders.Values)
+        {
+            if (order.Type != OrderType.Limit || order.Side != side || order.EffectivePrice is not { } price)
+                continue;
+            if (bestPrice is null || side == Side.Buy && price > bestPrice.Value ||
+                side == Side.Sell && price < bestPrice.Value)
+                bestPrice = price;
+        }
+
+        return bestPrice;
+    }
 
     private OrderId TakeNextOrderId()
     {
@@ -238,6 +355,9 @@ public sealed class MatchingEngine
     }
 
     private static bool IsValidSide(Side side) => side is Side.Buy or Side.Sell;
+
+    private static bool IsValidPegReference(PegReference reference) =>
+        reference is PegReference.Bid or PegReference.Offer;
 
     private static bool Crosses(Side incomingSide, Price limitPrice, Price restingPrice) =>
         incomingSide == Side.Buy ? restingPrice <= limitPrice : restingPrice >= limitPrice;

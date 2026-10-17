@@ -10,6 +10,19 @@ public enum OrderType
 {
     Limit,
     Market,
+    Pegged,
+}
+
+public enum PegReference
+{
+    Bid,
+    Offer,
+}
+
+public enum OrderState
+{
+    Resting,
+    Suspended,
 }
 
 public readonly record struct OrderId(ulong Value);

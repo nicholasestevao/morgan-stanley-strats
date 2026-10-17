@@ -11,6 +11,7 @@ public sealed class OutputFormatterTests
     [InlineData(CommandParseErrorCode.UnknownCommand, "Error: unknown command.")]
     [InlineData(CommandParseErrorCode.InvalidSyntax, "Error: invalid command syntax.")]
     [InlineData(CommandParseErrorCode.InvalidSide, "Error: side must be buy or sell.")]
+    [InlineData(CommandParseErrorCode.InvalidPegReference, "Error: reference must be bid or offer.")]
     [InlineData(CommandParseErrorCode.InvalidPrice, "Error: invalid price.")]
     [InlineData(CommandParseErrorCode.InvalidQuantity, "Error: quantity must be a positive integer.")]
     [InlineData(CommandParseErrorCode.InvalidOrderId, "Error: order ID must be a positive integer.")]
@@ -20,12 +21,14 @@ public sealed class OutputFormatterTests
     [Theory]
     [InlineData(EngineErrorCode.RequestRequired, "Error: request is required.")]
     [InlineData(EngineErrorCode.InvalidSide, "Error: side must be buy or sell.")]
+    [InlineData(EngineErrorCode.InvalidPegReference, "Error: reference must be bid or offer.")]
     [InlineData(EngineErrorCode.InvalidPrice, "Error: invalid price.")]
     [InlineData(EngineErrorCode.NonPositiveQuantity, "Error: quantity must be positive.")]
     [InlineData(EngineErrorCode.OrderIdExhausted, "Error: order ID capacity is exhausted.")]
     [InlineData(EngineErrorCode.PrioritySequenceExhausted, "Error: priority capacity is exhausted.")]
     [InlineData(EngineErrorCode.UnsupportedRequest, "Error: unsupported request.")]
     [InlineData(EngineErrorCode.OrderNotFound, "Error: order was not found.")]
+    [InlineData(EngineErrorCode.PriceAmendmentNotAllowed, "Error: pegged order price cannot be amended directly.")]
     public void FormatError_FormatsEngineErrors(EngineErrorCode code, string expected) =>
         Assert.Equal(expected, OutputFormatter.FormatError(new EngineError(code, "field")));
 
@@ -141,6 +144,29 @@ public sealed class OutputFormatterTests
                 "Buy Orders           | Sell Orders",
                 "---------------------|------------",
                 "1000000000000 @ 0.01 |",
+            ],
+            OutputFormatter.FormatBook(snapshot).ToArray());
+    }
+
+    [Fact]
+    public void FormatBook_PrintsSuspendedOrdersSeparately()
+    {
+        var snapshot = new BookSnapshot(
+            [],
+            [],
+            [
+                new SuspendedOrderSnapshot(new OrderId(2), Side.Buy, PegReference.Bid, 100),
+                new SuspendedOrderSnapshot(new OrderId(3), Side.Sell, PegReference.Offer, 50),
+            ]);
+
+        Assert.Equal(
+            [
+                "Buy Orders | Sell Orders",
+                "-----------|------------",
+                "Suspended Orders",
+                "----------------",
+                "id: 2, peg bid buy, qty: 100",
+                "id: 3, peg offer sell, qty: 50",
             ],
             OutputFormatter.FormatBook(snapshot).ToArray());
     }

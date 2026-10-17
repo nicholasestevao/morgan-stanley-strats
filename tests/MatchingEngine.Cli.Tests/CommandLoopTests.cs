@@ -142,6 +142,24 @@ public sealed class CommandLoopTests
             output);
     }
 
+    [Fact]
+    public void Run_AcceptsAndPrintsSuspendedPeggedOrder()
+    {
+        var output = Run(
+            "peg bid buy 100\n" +
+            "print book\n");
+
+        Assert.Equal(
+            Lines(
+                "Order accepted, id: 1",
+                "Buy Orders | Sell Orders",
+                "-----------|------------",
+                "Suspended Orders",
+                "----------------",
+                "id: 1, peg bid buy, qty: 100"),
+            output);
+    }
+
     private static string Run(string input)
     {
         using var reader = new StringReader(input);

@@ -20,6 +20,7 @@ public static class OutputFormatter
             CommandParseErrorCode.UnknownCommand => "Error: unknown command.",
             CommandParseErrorCode.InvalidSyntax => "Error: invalid command syntax.",
             CommandParseErrorCode.InvalidSide => "Error: side must be buy or sell.",
+            CommandParseErrorCode.InvalidPegReference => "Error: reference must be bid or offer.",
             CommandParseErrorCode.InvalidPrice => "Error: invalid price.",
             CommandParseErrorCode.InvalidQuantity => "Error: quantity must be a positive integer.",
             CommandParseErrorCode.InvalidOrderId => "Error: order ID must be a positive integer.",
@@ -35,11 +36,14 @@ public static class OutputFormatter
         {
             EngineErrorCode.RequestRequired => "Error: request is required.",
             EngineErrorCode.InvalidSide => "Error: side must be buy or sell.",
+            EngineErrorCode.InvalidPegReference => "Error: reference must be bid or offer.",
             EngineErrorCode.InvalidPrice => "Error: invalid price.",
             EngineErrorCode.NonPositiveQuantity => "Error: quantity must be positive.",
             EngineErrorCode.OrderIdExhausted => "Error: order ID capacity is exhausted.",
             EngineErrorCode.PrioritySequenceExhausted => "Error: priority capacity is exhausted.",
             EngineErrorCode.OrderNotFound => "Error: order was not found.",
+            EngineErrorCode.PriceAmendmentNotAllowed =>
+                "Error: pegged order price cannot be amended directly.",
             EngineErrorCode.UnsupportedRequest => "Error: unsupported request.",
             _ => "Error: operation failed.",
         };
@@ -109,9 +113,23 @@ public static class OutputFormatter
             lines.Add($"{bid.PadRight(bidWidth)} | {ask}".TrimEnd());
         }
 
+        if (snapshot.SuspendedOrders.Length > 0)
+        {
+            lines.Add("Suspended Orders");
+            lines.Add("----------------");
+            foreach (var order in snapshot.SuspendedOrders)
+                lines.Add(FormatSuspendedOrder(order));
+        }
+
         return lines.ToImmutable();
     }
 
     private static string FormatOrder(BookOrderSnapshot order) =>
         $"{order.RemainingQuantity.ToString(CultureInfo.InvariantCulture)} @ {order.Price}";
+
+    private static string FormatSuspendedOrder(SuspendedOrderSnapshot order) =>
+        $"id: {order.OrderId.Value.ToString(CultureInfo.InvariantCulture)}, " +
+        $"peg {(order.PegReference == PegReference.Bid ? "bid" : "offer")} " +
+        $"{(order.Side == Side.Buy ? "buy" : "sell")}, " +
+        $"qty: {order.RemainingQuantity.ToString(CultureInfo.InvariantCulture)}";
 }

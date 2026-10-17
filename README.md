@@ -24,6 +24,7 @@ Milestones M1, M2, and M3 are complete. The engine supports matching, order mana
 - [x] Pegged-order reference tracking and suspension
 - [x] Automatic pegged-order repricing with preserved priority
 - [x] Stabilized pegged-order matching
+- [x] Mixed-operation invariant regression coverage
 
 Prices are stored as signed 64-bit minor units and are parsed without floating-point conversion. Accepted input has at most two decimal places and uses a dot as the decimal separator.
 
@@ -50,6 +51,8 @@ Changing an order's price assigns a new priority sequence and may immediately pr
 A pegged order derives its effective price from the best active fixed-price limit on its selected bid or offer reference. Other pegged orders never contribute to that reference. The engine recalculates references after successful submissions, cancellations, amendments, and executions. Repricing preserves the order's priority sequence, including across suspension and reactivation. If no fixed reference exists, the order remains active but suspended outside the executable book and appears in a separate snapshot section. Cancellation and quantity amendment also apply to suspended orders, while direct price amendment is rejected. Reference lookup currently scans active orders in `O(N)` time.
 
 Every successful command ends with a stabilized book. The engine recalculates all pegged prices before selecting another counterparty, then executes crossed pegged orders by priority sequence and repeats until no price changes or executions remain. Each execution reduces a positive remaining quantity, which guarantees progress toward termination. Trades created during stabilization are included in the result and CLI output of the command that triggered them.
+
+The regression suite checks internal consistency after every operation in mixed workflows. It verifies that the active-order registry and price-time index agree, suspended orders remain outside the executable book, priorities are unique, prices and references are current, trades have positive quantities, and stabilized books are never crossed.
 
 ## Build and test
 

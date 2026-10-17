@@ -149,6 +149,52 @@ public sealed class MatchingEngine
         return id;
     }
 
+    internal void ValidateInvariants()
+    {
+        orderBook.ValidateInvariants();
+        var entries = orderBook.Enumerate(Side.Buy).Concat(orderBook.Enumerate(Side.Sell)).ToArray();
+        if (entries.Length != orderBook.Count || entries.Select(entry => entry.OrderId).Distinct().Count() != entries.Length)
+            throw new InvalidOperationException("Each indexed order must appear exactly once.");
+        if (activeOrders.Values.Select(order => order.PrioritySequence).Distinct().Count() != activeOrders.Count)
+            throw new InvalidOperationException("Active order priority sequences must be unique.");
+
+        foreach (var entry in entries)
+        {
+            if (!activeOrders.TryGetValue(entry.OrderId, out var order) ||
+                order.State != OrderState.Resting || order.Side != entry.Side ||
+                order.EffectivePrice != entry.Price || order.PrioritySequence != entry.PrioritySequence)
+                throw new InvalidOperationException("An indexed order does not match the active registry.");
+        }
+
+        foreach (var order in activeOrders.Values)
+        {
+            if (order.RemainingQuantity <= 0)
+                throw new InvalidOperationException("An active order has no remaining quantity.");
+            var indexedCount = entries.Count(entry => entry.OrderId == order.Id);
+            if (order.State == OrderState.Suspended)
+            {
+                if (order.Type != OrderType.Pegged || order.EffectivePrice is not null || indexedCount != 0)
+                    throw new InvalidOperationException("A suspended order has invalid state.");
+            }
+            else if (order.EffectivePrice is not { MinorUnits: > 0 } || indexedCount != 1)
+                throw new InvalidOperationException("A resting order has invalid state.");
+
+            if (order.Type == OrderType.Pegged)
+            {
+                if (order.PegReference is not { } reference || order.EffectivePrice != FindReferencePrice(reference))
+                    throw new InvalidOperationException("A pegged order does not match its reference.");
+            }
+            else if (order.Type != OrderType.Limit || order.PegReference is not null)
+                throw new InvalidOperationException("The active registry contains an invalid order type.");
+        }
+
+        if (orderBook.TryGetBest(Side.Buy, out var bid) && orderBook.TryGetBest(Side.Sell, out var ask) &&
+            bid.Price >= ask.Price)
+            throw new InvalidOperationException("The stabilized order book is crossed.");
+        if (TryGetExecutablePegged(out _))
+            throw new InvalidOperationException("The stabilized order book contains an executable pegged order.");
+    }
+
     private OperationResult<SubmitResult> SubmitLimit(LimitRequest request)
     {
         if (!IsValidSide(request.Side))

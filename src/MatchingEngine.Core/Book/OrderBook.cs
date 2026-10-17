@@ -33,10 +33,10 @@ internal sealed class OrderBook
     {
         var bookSide = GetBookSide(side);
 
-        if (!bookSide.TryGetValue(price, out var level) || !level.Remove(prioritySequence)) 
+        if (!bookSide.TryGetValue(price, out var level) || !level.Remove(prioritySequence))
             return false;
-            
-        if (level.Count == 0) 
+
+        if (level.Count == 0)
             bookSide.Remove(price);
 
         Count--;
@@ -61,6 +61,21 @@ internal sealed class OrderBook
         foreach (var (price, level) in GetBookSide(side))
             foreach (var (prioritySequence, orderId) in level)
                 yield return new OrderBookEntry(orderId, side, price, prioritySequence);
+    }
+
+    internal void ValidateInvariants()
+    {
+        var indexedOrders = 0;
+        foreach (var bookSide in new[] { bids, asks })
+            foreach (var level in bookSide.Values)
+            {
+                if (level.Count == 0)
+                    throw new InvalidOperationException("The order book contains an empty price level.");
+                indexedOrders = checked(indexedOrders + level.Count);
+            }
+
+        if (indexedOrders != Count)
+            throw new InvalidOperationException("The order book count does not match its price levels.");
     }
 
     private SortedDictionary<Price, SortedDictionary<PrioritySequence, OrderId>> GetBookSide(Side side) =>

@@ -57,15 +57,36 @@ public static class CommandParser
 
     private static CommandParseResult ParseAmend(string[] tokens)
     {
-        if (tokens.Length != 5 || !Is(tokens[1], "order") || !Is(tokens[3], "qty"))
+        if (tokens.Length is not (5 or 7) || !Is(tokens[1], "order"))
+            return CommandParseResult.Failure(CommandParseErrorCode.InvalidSyntax, "command");
+
+        var hasPrice = Is(tokens[3], "price");
+        var hasQuantity = Is(tokens[tokens.Length == 5 ? 3 : 5], "qty");
+        if (tokens.Length == 5 && !hasPrice && !hasQuantity ||
+            tokens.Length == 7 && (!hasPrice || !hasQuantity))
             return CommandParseResult.Failure(CommandParseErrorCode.InvalidSyntax, "command");
         if (!TryParseOrderId(tokens[2], out var orderId))
             return CommandParseResult.Failure(CommandParseErrorCode.InvalidOrderId, "orderId");
-        if (!TryParseQuantity(tokens[4], out var quantity))
-            return CommandParseResult.Failure(CommandParseErrorCode.InvalidQuantity, "quantity");
+
+        Price? price = null;
+        if (hasPrice)
+        {
+            if (!Price.TryParse(tokens[4], out var parsedPrice, out _))
+                return CommandParseResult.Failure(CommandParseErrorCode.InvalidPrice, "price");
+            price = parsedPrice;
+        }
+
+        long? quantity = null;
+        var quantityIndex = tokens.Length == 5 ? 4 : 6;
+        if (hasQuantity)
+        {
+            if (!TryParseQuantity(tokens[quantityIndex], out var parsedQuantity))
+                return CommandParseResult.Failure(CommandParseErrorCode.InvalidQuantity, "quantity");
+            quantity = parsedQuantity;
+        }
 
         return CommandParseResult.Success(new AmendOrderCommand(
-            new AmendRequest(orderId, Quantity: quantity)));
+            new AmendRequest(orderId, price, quantity)));
     }
 
     private static CommandParseResult ParsePrint(string[] tokens) =>

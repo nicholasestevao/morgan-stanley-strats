@@ -86,6 +86,20 @@ public sealed class OutputFormatterTests
     }
 
     [Fact]
+    public void FormatAmendment_PrintsGroupedTrades()
+    {
+        var result = new AmendResult(
+            new OrderId(42),
+            [Trade(42, 1, 1_000, 20), Trade(42, 2, 1_000, 10)],
+            30,
+            20);
+
+        Assert.Equal(
+            ["Order amended, id: 42, qty: 20", "Trade, price: 10, qty: 30"],
+            OutputFormatter.FormatAmendment(result).ToArray());
+    }
+
+    [Fact]
     public void FormatBook_PrintsHeadersForEmptyBook()
     {
         var snapshot = new BookSnapshot([], []);

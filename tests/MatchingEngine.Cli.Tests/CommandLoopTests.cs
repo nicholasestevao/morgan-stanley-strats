@@ -121,6 +121,27 @@ public sealed class CommandLoopTests
             output);
     }
 
+    [Fact]
+    public void Run_AmendsPriceAndQuantityThenMatchesCrossingOrder()
+    {
+        var output = Run(
+            "limit sell 10 30\n" +
+            "limit buy 9 50\n" +
+            "amend order 2 price 10 qty 40\n" +
+            "print book\n");
+
+        Assert.Equal(
+            Lines(
+                "Order accepted, id: 1",
+                "Order accepted, id: 2",
+                "Order amended, id: 2, qty: 10",
+                "Trade, price: 10, qty: 30",
+                "Buy Orders | Sell Orders",
+                "-----------|------------",
+                "10 @ 10    |"),
+            output);
+    }
+
     private static string Run(string input)
     {
         using var reader = new StringReader(input);

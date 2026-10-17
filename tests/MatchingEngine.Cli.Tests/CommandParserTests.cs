@@ -68,6 +68,32 @@ public sealed class CommandParserTests
     }
 
     [Theory]
+    [InlineData("amend order 1 price 10.5", 1UL, 1_050)]
+    [InlineData("AMEND ORDER 42 PRICE 0.01", 42UL, 1)]
+    public void Parse_CreatesAmendPriceCommand(
+        string input,
+        ulong expectedOrderId,
+        long expectedMinorUnits)
+    {
+        var command = Assert.IsType<AmendOrderCommand>(Success(input));
+
+        Assert.Equal(new OrderId(expectedOrderId), command.Request.OrderId);
+        Assert.Equal(expectedMinorUnits, command.Request.Price?.MinorUnits);
+        Assert.Null(command.Request.Quantity);
+    }
+
+    [Fact]
+    public void Parse_CreatesCombinedAmendCommand()
+    {
+        var command = Assert.IsType<AmendOrderCommand>(
+            Success("amend order 7 price 10.5 qty 80"));
+
+        Assert.Equal(new OrderId(7), command.Request.OrderId);
+        Assert.Equal(1_050, command.Request.Price?.MinorUnits);
+        Assert.Equal(80, command.Request.Quantity);
+    }
+
+    [Theory]
     [InlineData(null)]
     [InlineData("")]
     [InlineData("   ")]
@@ -101,6 +127,11 @@ public sealed class CommandParserTests
     [InlineData("amend orders 1 qty 10")]
     [InlineData("amend order 1 quantity 10")]
     [InlineData("amend order 1 qty 10 extra")]
+    [InlineData("amend order 1 price")]
+    [InlineData("amend order 1 price 10 quantity 20")]
+    [InlineData("amend order 1 qty 20 price 10")]
+    [InlineData("amend order 1 price 10 qty")]
+    [InlineData("amend order 1 price 10 qty 20 extra")]
     public void Parse_RejectsMissingExtraOrUnexpectedTokens(string input) =>
         AssertFailure(input, CommandParseErrorCode.InvalidSyntax, "command");
 
@@ -141,6 +172,7 @@ public sealed class CommandParserTests
     [InlineData("amend order -1 qty 10")]
     [InlineData("amend order 1x qty 10")]
     [InlineData("amend order 18446744073709551616 qty 10")]
+    [InlineData("amend order 0 price 10")]
     public void Parse_RejectsInvalidOrderId(string input) =>
         AssertFailure(input, CommandParseErrorCode.InvalidOrderId, "orderId");
 
@@ -152,6 +184,23 @@ public sealed class CommandParserTests
     [InlineData("amend order 1 qty 9223372036854775808")]
     [InlineData("amend order 1 qty ١")]
     public void Parse_RejectsInvalidAmendQuantity(string input) =>
+        AssertFailure(input, CommandParseErrorCode.InvalidQuantity, "quantity");
+
+    [Theory]
+    [InlineData("amend order 1 price 0")]
+    [InlineData("amend order 1 price -10")]
+    [InlineData("amend order 1 price 10.001")]
+    [InlineData("amend order 1 price 10x")]
+    [InlineData("amend order 1 price 999999999999999999999")]
+    [InlineData("amend order 1 price 0 qty 10")]
+    public void Parse_RejectsInvalidAmendPrice(string input) =>
+        AssertFailure(input, CommandParseErrorCode.InvalidPrice, "price");
+
+    [Theory]
+    [InlineData("amend order 1 price 10 qty 0")]
+    [InlineData("amend order 1 price 10 qty -1")]
+    [InlineData("amend order 1 price 10 qty 9223372036854775808")]
+    public void Parse_RejectsInvalidCombinedAmendQuantity(string input) =>
         AssertFailure(input, CommandParseErrorCode.InvalidQuantity, "quantity");
 
     private static CliCommand Success(string input)

@@ -50,26 +50,50 @@ public sealed class MatchingEngine
     {
         if (request is null)
             return OperationResult<AmendResult>.Failure(EngineErrorCode.RequestRequired, "request");
-        if (request.Price is not null || request.Quantity is null)
+        if (request.Price is null && request.Quantity is null)
             return OperationResult<AmendResult>.Failure(EngineErrorCode.UnsupportedRequest, "request");
+        if (request.Price is { MinorUnits: <= 0 })
+            return OperationResult<AmendResult>.Failure(EngineErrorCode.InvalidPrice, "price");
         if (request.Quantity <= 0)
             return OperationResult<AmendResult>.Failure(EngineErrorCode.NonPositiveQuantity, "quantity");
         if (!activeOrders.TryGetValue(request.OrderId, out var order))
             return OperationResult<AmendResult>.Failure(EngineErrorCode.OrderNotFound, "orderId");
 
-        var quantity = request.Quantity.Value;
-        if (quantity > order.RemainingQuantity)
+        var currentPrice = order.EffectivePrice!.Value;
+        var price = request.Price ?? currentPrice;
+        var quantity = request.Quantity ?? order.RemainingQuantity;
+        var losesPriority = price != currentPrice || quantity > order.RemainingQuantity;
+        if (!losesPriority)
         {
-            if (prioritySequencesExhausted)
-                return OperationResult<AmendResult>.Failure(
-                    EngineErrorCode.PrioritySequenceExhausted,
-                    "prioritySequence");
-
-            RequeueWithNewPriority(order);
+            order.RemainingQuantity = quantity;
+            return OperationResult<AmendResult>.Success(new AmendResult(order.Id, [], 0, quantity));
         }
+        if (prioritySequencesExhausted)
+            return OperationResult<AmendResult>.Failure(
+                EngineErrorCode.PrioritySequenceExhausted,
+                "prioritySequence");
 
-        order.RemainingQuantity = quantity;
-        return OperationResult<AmendResult>.Success(new AmendResult(order.Id, [], 0, quantity));
+        var prioritySequence = TakeNextPrioritySequence();
+        RemoveFromBook(order);
+        var remainingQuantity = quantity;
+        var trades = ImmutableArray.CreateBuilder<Trade>();
+        Match(order.Side, order.Id, ref remainingQuantity, trades, price);
+
+        if (remainingQuantity > 0)
+        {
+            order.RemainingQuantity = remainingQuantity;
+            order.PrioritySequence = prioritySequence;
+            order.EffectivePrice = price;
+            orderBook.Add(order.Side, price, prioritySequence, order.Id);
+        }
+        else if (!activeOrders.Remove(order.Id))
+            throw new InvalidOperationException("Order is missing from the active registry.");
+
+        return OperationResult<AmendResult>.Success(new AmendResult(
+            order.Id,
+            trades.ToImmutable(),
+            quantity - remainingQuantity,
+            remainingQuantity));
     }
 
     internal OrderId AddRestingLimit(Side side, Price price, long quantity)
@@ -167,21 +191,16 @@ public sealed class MatchingEngine
 
     private void RemoveOrder(Order order)
     {
-        if (order.EffectivePrice is { } price &&
-            !orderBook.Remove(order.Side, price, order.PrioritySequence))
-            throw new InvalidOperationException("Active order is missing from the order book.");
+        RemoveFromBook(order);
         if (!activeOrders.Remove(order.Id))
             throw new InvalidOperationException("Order is missing from the active registry.");
     }
 
-    private void RequeueWithNewPriority(Order order)
+    private void RemoveFromBook(Order order)
     {
-        var price = order.EffectivePrice!.Value;
-        if (!orderBook.Remove(order.Side, price, order.PrioritySequence))
+        if (order.EffectivePrice is { } price &&
+            !orderBook.Remove(order.Side, price, order.PrioritySequence))
             throw new InvalidOperationException("Active order is missing from the order book.");
-
-        order.PrioritySequence = TakeNextPrioritySequence();
-        orderBook.Add(order.Side, price, order.PrioritySequence, order.Id);
     }
 
     private void AddRestingLimit(

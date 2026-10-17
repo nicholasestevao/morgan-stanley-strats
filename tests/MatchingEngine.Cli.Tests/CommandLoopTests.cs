@@ -179,6 +179,25 @@ public sealed class CommandLoopTests
             output);
     }
 
+    [Fact]
+    public void Run_StabilizesCrossingPeggedAndPrintsGeneratedTrade()
+    {
+        var output = Run(
+            "peg bid sell 6\n" +
+            "limit buy 10 10\n" +
+            "print book\n");
+
+        Assert.Equal(
+            Lines(
+                "Order accepted, id: 1",
+                "Order accepted, id: 2",
+                "Trade, price: 10, qty: 6",
+                "Buy Orders | Sell Orders",
+                "-----------|------------",
+                "4 @ 10     |"),
+            output);
+    }
+
     private static string Run(string input)
     {
         using var reader = new StringReader(input);

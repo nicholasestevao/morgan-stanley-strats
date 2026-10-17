@@ -75,7 +75,22 @@ public sealed class OutputFormatterTests
     {
         var result = new CancelResult(new OrderId(42), 75);
 
-        Assert.Equal("Order cancelled, id: 42, qty: 75", OutputFormatter.FormatCancellation(result));
+        Assert.Equal(
+            ["Order cancelled, id: 42, qty: 75"],
+            OutputFormatter.FormatCancellation(result).ToArray());
+    }
+
+    [Fact]
+    public void FormatCancellation_PrintsStabilizationTrades()
+    {
+        var result = new CancelResult(
+            new OrderId(42),
+            75,
+            [Trade(1, 2, 1_000, 10)]);
+
+        Assert.Equal(
+            ["Order cancelled, id: 42, qty: 75", "Trade, price: 10, qty: 10"],
+            OutputFormatter.FormatCancellation(result).ToArray());
     }
 
     [Fact]

@@ -50,7 +50,7 @@ public sealed class CommandLoop(Engine engine)
             return;
         }
 
-        output.WriteLine(OutputFormatter.FormatCancellation(result.Value!));
+        WriteLines(OutputFormatter.FormatCancellation(result.Value!), output);
     }
 
     private void Amend(AmendRequest request, TextWriter output)

@@ -49,11 +49,15 @@ public static class OutputFormatter
         };
     }
 
-    public static string FormatCancellation(CancelResult result)
+    public static ImmutableArray<string> FormatCancellation(CancelResult result)
     {
         ArgumentNullException.ThrowIfNull(result);
-        return $"Order cancelled, id: {result.OrderId.Value.ToString(CultureInfo.InvariantCulture)}, " +
-            $"qty: {result.CancelledQuantity.ToString(CultureInfo.InvariantCulture)}";
+
+        var lines = ImmutableArray.CreateBuilder<string>();
+        lines.Add($"Order cancelled, id: {result.OrderId.Value.ToString(CultureInfo.InvariantCulture)}, " +
+            $"qty: {result.CancelledQuantity.ToString(CultureInfo.InvariantCulture)}");
+        AppendTrades(lines, result.Trades);
+        return lines.ToImmutable();
     }
 
     public static ImmutableArray<string> FormatSubmission(SubmitResult result)

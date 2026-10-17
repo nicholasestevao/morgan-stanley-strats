@@ -25,7 +25,13 @@ public sealed record SubmitResult(
     long RestingQuantity,
     long CancelledQuantity);
 
-public sealed record CancelResult(OrderId OrderId, long CancelledQuantity);
+public sealed record CancelResult(
+    OrderId OrderId,
+    long CancelledQuantity,
+    ImmutableArray<Trade> Trades)
+{
+    public CancelResult(OrderId orderId, long cancelledQuantity) : this(orderId, cancelledQuantity, []) { }
+}
 
 public sealed record AmendResult(
     OrderId OrderId,

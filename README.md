@@ -6,7 +6,7 @@ The engine will process orders for one instrument using price-time priority. The
 
 ## Current status
 
-Milestones M1 and M2 are complete. M3 now includes pegged-order submission, fixed-limit reference lookup, and suspension when a reference is unavailable.
+Milestones M1 and M2 are complete. M3 now includes pegged-order submission, suspension, and automatic repricing from fixed-limit references.
 
 - [x] .NET 10 solution and xUnit test infrastructure
 - [x] Exact fixed-point price representation and parsing
@@ -22,7 +22,7 @@ Milestones M1 and M2 are complete. M3 now includes pegged-order submission, fixe
 - [x] Remaining-quantity amendment with priority updates
 - [x] Price amendment with matching and combined quantity updates
 - [x] Pegged-order reference tracking and suspension
-- [ ] Automatic pegged-order repricing
+- [x] Automatic pegged-order repricing with preserved priority
 - [ ] Stabilized pegged-order matching
 
 Prices are stored as signed 64-bit minor units and are parsed without floating-point conversion. Accepted input has at most two decimal places and uses a dot as the decimal separator.
@@ -47,7 +47,9 @@ Amending quantity replaces the order's current remaining quantity. Reductions an
 
 Changing an order's price assigns a new priority sequence and may immediately produce trades under the same rules as a new limit order. Trades use resting counterparty prices, the amended order keeps its ID, and any unmatched quantity rests at the new price.
 
-A pegged order derives its effective price from the best active fixed-price limit on its selected bid or offer reference. Other pegged orders never contribute to that reference. If no fixed reference exists, the order remains active but suspended outside the executable book and appears in a separate snapshot section. Cancellation and quantity amendment also apply to suspended orders, while direct price amendment is rejected. Automatic repricing after later reference changes is the next M3 increment; reference lookup currently scans active orders in `O(N)` time.
+A pegged order derives its effective price from the best active fixed-price limit on its selected bid or offer reference. Other pegged orders never contribute to that reference. The engine recalculates references after successful submissions, cancellations, amendments, and executions. Repricing preserves the order's priority sequence, including across suspension and reactivation. If no fixed reference exists, the order remains active but suspended outside the executable book and appears in a separate snapshot section. Cancellation and quantity amendment also apply to suspended orders, while direct price amendment is rejected. Reference lookup currently scans active orders in `O(N)` time.
+
+Automatic repricing does not yet execute crossings created by a new reference. Iterative matching and stabilization are the final M3 increment.
 
 ## Build and test
 

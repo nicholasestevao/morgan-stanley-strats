@@ -29,14 +29,14 @@ public sealed class MatchingEngine
         CreateSideSnapshot(Side.Sell),
         CreateSuspendedSnapshot());
 
-    public OperationResult<SubmitResult> Submit(SubmitRequest? request) => request switch
+    public OperationResult<SubmitResult> Submit(SubmitRequest? request) => RepriceAfter(request switch
     {
         null => OperationResult<SubmitResult>.Failure(EngineErrorCode.RequestRequired, "request"),
         LimitRequest limit => SubmitLimit(limit),
         MarketRequest market => SubmitMarket(market),
         PeggedRequest pegged => SubmitPegged(pegged),
         _ => OperationResult<SubmitResult>.Failure(EngineErrorCode.UnsupportedRequest, "request"),
-    };
+    });
 
     public OperationResult<CancelResult> Cancel(CancelRequest? request)
     {
@@ -47,7 +47,8 @@ public sealed class MatchingEngine
 
         var cancelledQuantity = order.RemainingQuantity;
         RemoveOrder(order);
-        return OperationResult<CancelResult>.Success(new CancelResult(order.Id, cancelledQuantity));
+        return RepriceAfter(OperationResult<CancelResult>.Success(
+            new CancelResult(order.Id, cancelledQuantity)));
     }
 
     public OperationResult<AmendResult> Amend(AmendRequest? request)
@@ -80,8 +81,8 @@ public sealed class MatchingEngine
             }
 
             order.RemainingQuantity = suspendedQuantity;
-            return OperationResult<AmendResult>.Success(
-                new AmendResult(order.Id, [], 0, suspendedQuantity));
+            return RepriceAfter(OperationResult<AmendResult>.Success(
+                new AmendResult(order.Id, [], 0, suspendedQuantity)));
         }
 
         var currentPrice = order.EffectivePrice!.Value;
@@ -91,7 +92,8 @@ public sealed class MatchingEngine
         if (!losesPriority)
         {
             order.RemainingQuantity = quantity;
-            return OperationResult<AmendResult>.Success(new AmendResult(order.Id, [], 0, quantity));
+            return RepriceAfter(OperationResult<AmendResult>.Success(
+                new AmendResult(order.Id, [], 0, quantity)));
         }
         if (prioritySequencesExhausted)
             return OperationResult<AmendResult>.Failure(
@@ -114,11 +116,11 @@ public sealed class MatchingEngine
         else if (!activeOrders.Remove(order.Id))
             throw new InvalidOperationException("Order is missing from the active registry.");
 
-        return OperationResult<AmendResult>.Success(new AmendResult(
+        return RepriceAfter(OperationResult<AmendResult>.Success(new AmendResult(
             order.Id,
             trades.ToImmutable(),
             quantity - remainingQuantity,
-            remainingQuantity));
+            remainingQuantity)));
     }
 
     internal OrderId AddRestingLimit(Side side, Price price, long quantity)
@@ -132,6 +134,7 @@ public sealed class MatchingEngine
         var id = TakeNextOrderId();
         var prioritySequence = TakeNextPrioritySequence();
         AddRestingLimit(id, prioritySequence, side, price, quantity);
+        RepricePeggedOrders();
         return id;
     }
 
@@ -336,6 +339,33 @@ public sealed class MatchingEngine
         }
 
         return bestPrice;
+    }
+
+    private OperationResult<T> RepriceAfter<T>(OperationResult<T> result) where T : class
+    {
+        if (result.IsSuccess) RepricePeggedOrders();
+        return result;
+    }
+
+    private bool RepricePeggedOrders()
+    {
+        var changed = false;
+        foreach (var order in activeOrders.Values
+            .Where(order => order.Type == OrderType.Pegged)
+            .OrderBy(order => order.PrioritySequence))
+        {
+            var referencePrice = FindReferencePrice(order.PegReference!.Value);
+            if (referencePrice == order.EffectivePrice) continue;
+
+            RemoveFromBook(order);
+            order.EffectivePrice = referencePrice;
+            order.State = referencePrice is null ? OrderState.Suspended : OrderState.Resting;
+            if (referencePrice is { } price)
+                orderBook.Add(order.Side, price, order.PrioritySequence, order.Id);
+            changed = true;
+        }
+
+        return changed;
     }
 
     private OrderId TakeNextOrderId()

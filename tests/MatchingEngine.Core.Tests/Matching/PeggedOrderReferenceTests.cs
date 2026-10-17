@@ -76,8 +76,10 @@ public sealed class PeggedOrderReferenceTests
         var secondPegged = Success(engine.Submit(new PeggedRequest(PegReference.Bid, Side.Buy, 10)));
         var snapshot = engine.GetSnapshot();
 
-        Assert.Equal(firstPegged.OrderId, Assert.Single(snapshot.Bids).OrderId);
-        Assert.Equal(secondPegged.OrderId, Assert.Single(snapshot.SuspendedOrders).OrderId);
+        Assert.Empty(snapshot.Bids);
+        Assert.Equal(
+            [firstPegged.OrderId, secondPegged.OrderId],
+            snapshot.SuspendedOrders.Select(order => order.OrderId));
     }
 
     [Fact]

@@ -160,6 +160,25 @@ public sealed class CommandLoopTests
             output);
     }
 
+    [Fact]
+    public void Run_ActivatesSuspendedPeggedWhenReferenceAppears()
+    {
+        var output = Run(
+            "peg bid buy 100\n" +
+            "limit buy 10 50\n" +
+            "print book\n");
+
+        Assert.Equal(
+            Lines(
+                "Order accepted, id: 1",
+                "Order accepted, id: 2",
+                "Buy Orders | Sell Orders",
+                "-----------|------------",
+                "100 @ 10   |",
+                "50 @ 10    |"),
+            output);
+    }
+
     private static string Run(string input)
     {
         using var reader = new StringReader(input);
